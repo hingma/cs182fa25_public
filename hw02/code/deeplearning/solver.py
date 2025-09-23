@@ -158,7 +158,7 @@ class Solver(object):
         """
         # Make a minibatch of training data
         num_train = self.X_train.shape[0]
-        batch_mask = np.random.choice(num_train, self.batch_size)
+        batch_mask = np.random.choice(num_train, self.batch_size) # choose the data from the training set
         X_batch = self.X_train[batch_mask]
         y_batch = self.y_train[batch_mask]
 

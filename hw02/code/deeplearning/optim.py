@@ -62,12 +62,13 @@ def sgd_momentum(w, dw, config=None):
     config.setdefault("momentum", 0.9)
     v = config.get("velocity", np.zeros_like(w))
 
+
     next_w = None
     #############################################################################
-    # TODO: Implement the momentum update formula. Store the updated value in   #
-    # the next_w variable. You should also use and update the velocity v.       #
+    v = config.get("velocity", np.zeros_like(w))
+    v = config["momentum"] * v + dw
+    next_w = w - config["learning_rate"] * v
     #############################################################################
-    pass  # TODO
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -139,7 +140,28 @@ def adam(w, dw, config=None):
     # the next_w variable. Don't forget to update the m, v, and t variables     #
     # stored in config.                                                         #
     #############################################################################
-    pass  # TODO
+    # Get current values
+    m = config["m"]
+    v = config["v"] 
+    t = config["t"] + 1  # Increment t first
+    
+    # Update biased first moment estimate
+    m = config["beta1"] * m + (1 - config["beta1"]) * dw
+    # Update biased second raw moment estimate
+    v = config["beta2"] * v + (1 - config["beta2"]) * (dw * dw)
+    
+    # Compute bias-corrected first moment estimate
+    m_hat = m / (1 - config["beta1"]**t)
+    # Compute bias-corrected second raw moment estimate
+    v_hat = v / (1 - config["beta2"]**t)
+    
+    # Update parameters
+    next_w = w - config["learning_rate"] * m_hat / (np.sqrt(v_hat) + config["epsilon"])
+    
+    # Update config
+    config["m"] = m
+    config["v"] = v
+    config["t"] = t
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
