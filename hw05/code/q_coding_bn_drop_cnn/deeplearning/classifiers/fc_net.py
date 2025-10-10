@@ -249,7 +249,7 @@ class FullyConnectedNet(object):
             self.dropout_param["mode"] = mode
         if self.use_batchnorm:
             for bn_param in self.bn_params:
-                bn_param[mode] = mode
+                bn_param["mode"] = mode
 
         scores = None
         ############################################################################
@@ -267,7 +267,46 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
-
+        caches = {}
+        current_input = X
+        
+        # Forward pass through hidden layers
+        for layer in range(1, self.num_layers):
+            W = self.params['W' + str(layer)]
+            b = self.params['b' + str(layer)]
+            
+            # Affine forward
+            affine_out, affine_cache = affine_forward(current_input, W, b)
+            
+            # Batch normalization (if enabled)
+            if self.use_batchnorm:
+                gamma = self.params['gamma' + str(layer)]
+                beta = self.params['beta' + str(layer)]
+                bn_out, bn_cache = batchnorm_forward(affine_out, gamma, beta, self.bn_params[layer - 1])
+                relu_in = bn_out
+            else:
+                bn_cache = None
+                relu_in = affine_out
+            
+            # ReLU
+            relu_out, relu_cache = relu_forward(relu_in)
+            
+            # Dropout (if enabled)
+            if self.use_dropout:
+                dropout_out, dropout_cache = dropout_forward(relu_out, self.dropout_param)
+                current_input = dropout_out
+            else:
+                dropout_cache = None
+                current_input = relu_out
+            
+            # Store caches
+            caches[layer] = (affine_cache, bn_cache, relu_cache, dropout_cache)
+        
+        # Final affine layer (no activation)
+        W_final = self.params['W' + str(self.num_layers)]
+        b_final = self.params['b' + str(self.num_layers)]
+        scores, final_cache = affine_forward(current_input, W_final, b_final)
+        caches[self.num_layers] = final_cache
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -292,6 +331,39 @@ class FullyConnectedNet(object):
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
         # FC scores -> softmax. Calculate loss and gradients
+        loss, dscores = softmax_loss(scores, y)
+        
+        # Add L2 regularization to loss
+        for layer in range(1, self.num_layers + 1):
+            W = self.params['W' + str(layer)]
+            loss += 0.5 * self.reg * np.sum(W ** 2)
+        
+        # Backward pass through final affine layer
+        dout, dW_final, db_final = affine_backward(dscores, caches[self.num_layers])
+        grads['W' + str(self.num_layers)] = dW_final + self.reg * self.params['W' + str(self.num_layers)]
+        grads['b' + str(self.num_layers)] = db_final
+        
+        # Backward pass through hidden layers
+        for layer in range(self.num_layers - 1, 0, -1):
+            affine_cache, bn_cache, relu_cache, dropout_cache = caches[layer]
+            
+            # Dropout backward
+            if self.use_dropout:
+                dout = dropout_backward(dout, dropout_cache)
+            
+            # ReLU backward
+            dout = relu_backward(dout, relu_cache)
+            
+            # Batch normalization backward
+            if self.use_batchnorm:
+                dout, dgamma, dbeta = batchnorm_backward(dout, bn_cache)
+                grads['gamma' + str(layer)] = dgamma
+                grads['beta' + str(layer)] = dbeta
+            
+            # Affine backward
+            dout, dW, db = affine_backward(dout, affine_cache)
+            grads['W' + str(layer)] = dW + self.reg * self.params['W' + str(layer)]
+            grads['b' + str(layer)] = db
 
         ############################################################################
         #                             END OF YOUR CODE                             #
