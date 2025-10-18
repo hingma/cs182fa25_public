@@ -39,10 +39,16 @@ def newton_schulz_orthogonalize(X: torch.Tensor, num_iters: int, use_quintic=Fal
     for _ in range(num_iters):
         if use_quintic:
             # Apply the quintic polynomial f(X) = X(15/8 - 5X^2/4 + 3X^4/8)
-            X2 = torch.matmul(X, X.mT)  # X^2
-            X4 = torch.matmul(X2, X2.mT)  # X^4
-            X = torch.matmul(X, 15/8 * torch.eye(X.shape[-1], device=X.device) - 
-                             5/4 * X2 + 3/8 * X4)
+            # Note: quintic polynomial only works for square matrices
+            if X.shape[-2] == X.shape[-1]:
+                X2 = torch.matmul(X, X)  # X^2
+                X4 = torch.matmul(X2, X2)  # X^4
+                X = torch.matmul(X, 15/8 * torch.eye(X.shape[-1], device=X.device, dtype=X.dtype) - 
+                                 5/4 * X2 + 3/8 * X4)
+            else:
+                # For non-square matrices, fall back to cubic polynomial
+                X3 = torch.matmul(torch.matmul(X, X.mT), X)  # X^3
+                X = (3 * X - X3) / 2  # (3X - X^3)/2
         else:
             # Apply the cubic polynomial f(X) = (3X - X^3)/2
             X3 = torch.matmul(torch.matmul(X, X.mT), X)  # X^3
