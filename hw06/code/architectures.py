@@ -26,7 +26,7 @@ class BasicConvNet(nn.Module):
 class ResNet18(nn.Module):
     # Keep in mind that you will need to resize the Image to 224x224
     def __init__(self):
-        super().__init()
+        super().__init__()
         self.backbone = torchvision.models.resnet18()
         num_ftrs = self.backbone.fc.in_features
         self.backbone.fc = torch.nn.Linear(num_ftrs, 10)
