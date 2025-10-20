@@ -1,6 +1,5 @@
 import torch
 import torch.optim as optim
-from torch.nn.functional import normalize
 
 def newton_schulz_orthogonalize(X: torch.Tensor, num_iters: int, use_quintic=False):
     """
@@ -37,22 +36,29 @@ def newton_schulz_orthogonalize(X: torch.Tensor, num_iters: int, use_quintic=Fal
 
     # Apply Newton-Schulz iterations
     for _ in range(num_iters):
-        if use_quintic:
-            # Apply the quintic polynomial f(X) = X(15/8 - 5X^2/4 + 3X^4/8)
-            # Note: quintic polynomial only works for square matrices
-            if X.shape[-2] == X.shape[-1]:
-                X2 = torch.matmul(X, X)  # X^2
-                X4 = torch.matmul(X2, X2)  # X^4
-                X = torch.matmul(X, 15/8 * torch.eye(X.shape[-1], device=X.device, dtype=X.dtype) - 
-                                 5/4 * X2 + 3/8 * X4)
+        m, n = X.shape[-2], X.shape[-1]
+        if m >= n:
+            # Right-side polynomial using H = X^T X (n x n)
+            H = torch.matmul(X.mT, X)
+            if use_quintic:
+                I = torch.eye(n, device=X.device, dtype=X.dtype)
+                H2 = torch.matmul(H, H)
+                poly = (15.0 / 8.0) * I - (5.0 / 4.0) * H + (3.0 / 8.0) * H2
             else:
-                # For non-square matrices, fall back to cubic polynomial
-                X3 = torch.matmul(torch.matmul(X, X.mT), X)  # X^3
-                X = (3 * X - X3) / 2  # (3X - X^3)/2
+                I = torch.eye(n, device=X.device, dtype=X.dtype)
+                poly = 1.5 * I - 0.5 * H
+            X = torch.matmul(X, poly)
         else:
-            # Apply the cubic polynomial f(X) = (3X - X^3)/2
-            X3 = torch.matmul(torch.matmul(X, X.mT), X)  # X^3
-            X = (3 * X - X3) / 2  # (3X - X^3)/2
+            # Left-side polynomial using H = X X^T (m x m)
+            H = torch.matmul(X, X.mT)
+            if use_quintic:
+                I = torch.eye(m, device=X.device, dtype=X.dtype)
+                H2 = torch.matmul(H, H)
+                poly = (15.0 / 8.0) * I - (5.0 / 4.0) * H + (3.0 / 8.0) * H2
+            else:
+                I = torch.eye(m, device=X.device, dtype=X.dtype)
+                poly = 1.5 * I - 0.5 * H
+            X = torch.matmul(poly, X)
 
     if transposed:
         X = X.mT
@@ -87,7 +93,8 @@ def muon_update_quintic(grad, momentum, beta=0.95, ns_iters=3):
     update = newton_schulz_orthogonalize(update, ns_iters, use_quintic=True)
     
     # Apply muP scaling factor for consistent update magnitude
-    scaling_factor = torch.sqrt(torch.tensor(max(1, update.size(-2) / update.size(-1))))
+    ratio = update.size(-2) / max(1, update.size(-1))
+    scaling_factor = float(ratio) ** 0.5
     update = update * scaling_factor
 
     # Restore shape if needed
