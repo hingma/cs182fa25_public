@@ -37,7 +37,7 @@ class ResNet18(nn.Module):
 class MLP(nn.Module):
     def __init__(self, num_layers=7, size=2048, num_classes=10):
         super().__init__()
-        self.fc1 = nn.Linear(3072, size)
+        self.fc1 = nn.Linear(3*32*32, size)  # 3072 for standard CIFAR images (32x32x3)
         self.hidden = self.hidden = nn.ModuleList([nn.Linear(size, size) for _ in range(num_layers)])
         self.out = nn.Linear(size, num_classes)
         self.relu = nn.ReLU()
